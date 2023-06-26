@@ -1,72 +1,75 @@
-// server.js
-//console.log('May Node be with you')
-
 const express = require('express');
-const bodyParser= require('body-parser')
+const bodyParser = require('body-parser');
 const app = express();
+const mongoose = require('mongoose');
 
-const MongoClient = require('mongodb').MongoClient
+const connectionString = 'mongodb+srv://tinpdgcs210655:abcd1234@cluster0.xvafcai.mongodb.net/';
 
-const connectionString = 'mongodb+srv://tinpdgcs210655:abcd1234@cluster0.xvafcai.mongodb.net/'
+mongoose.connect(connectionString, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => {
+    console.log('Connected to Database');
 
-// (0) CONNECT: server -> connect -> MongoDB Atlas 
-MongoClient.connect(connectionString, { useUnifiedTopology: true })
-    .then(client => {
-        console.log('Connected to Database')
-        
-        // (1a) CREATE: client -> create -> database -> 'star-wars-quotes'
-        // -> create -> collection -> 'quotes'
-        const db = client.db('star-wars-quotes')
-        const quotesCollection = db.collection('quotes')
-        
-        // To tell Express to EJS as the template engine
-        app.set('view engine', 'ejs') 
-        
-        // Make sure you place body-parser before your CRUD handlers!
-        app.use(bodyParser.urlencoded({ extended: true }))
+    const productSchema = new mongoose.Schema({
+      name: String,
+      price: Number,
+      image: String,
+      description: String
+    });
 
-        // To make the 'public' folder accessible to the public
-        app.use(express.static('public'))
+    const Product = mongoose.model('Product', productSchema);
 
-        // To teach the server to read JSON data 
-        app.use(bodyParser.json())
+    app.set('view engine', 'ejs');
+    app.use(bodyParser.urlencoded({ extended: true }));
+    app.use(express.static('public'));
+    app.use(bodyParser.json());
 
-        // (2) READ: client -> browser -> url 
-        // -> server -> '/' -> collection -> 'quotes' -> find() 
-        // -> results -> index.ejs -> client
-        app.get('/', (req, res) => {
-            db.collection('quotes').find().toArray()
-                .then(results => {
+    app.post('/products', (req, res) => {
+      const { name, price, image, description } = req.body;
 
-                    // results -> server -> console
-                    console.log(results)
-                    
-                    // results -> index.ejs -> client -> browser 
-                    // The file 'index.ejs' must be placed inside a 'views' folder BY DEFAULT
-                    res.render('index.ejs', { quotes: results })
-                })
-                .catch(/* ... */)
+      const newProduct = new Product({
+        name,
+        price,
+        image,
+        description
+      });
+
+      newProduct.save()
+        .then(() => {
+          res.redirect('/products');
         })
-
-        // (1b) CREATE: client -> index.ejs -> data -> SUBMIT 
-        // -> post -> '/quotes' -> collection -> insert -> result
-        app.post('/quotes', (req, res) => {
-            quotesCollection.insertOne(req.body)
-            .then(result => {
-                
-                // results -> server -> console
-                console.log(result)
-
-                // -> redirect -> '/'
-                res.redirect('/')
-             })
-            .catch(error => console.error(error))
+        .catch(err => {
+          console.error(err);
+          res.status(500).send('Error adding product');
+        });
+    });
+    app.get('/', function(req, res) {
+        Product.find()
+          .then(products => {
+            res.render('index', { products });
+          })
+          .catch(err => {
+            console.error(err);
+            res.status(500).send('Error fetching products');
+          });
+      });
+    app.get('/products/add', (req, res) => {
+        res.render('add-product');
+      });
+    app.get('/products', (req, res) => {
+      Product.find()
+        .then(products => {
+          res.render('products', { products });
         })
-        
-        // server -> listen -> port -> 3000
-        app.listen(3000, function() {
-            console.log('listening on 3000')
-        })
-    })
+        .catch(err => {
+          console.error(err);
+          res.status(500).send('Error fetching products');
+        });
+    });
 
-
+    app.listen(3000, function () {
+      console.log('Listening on 3000');
+    });
+  })
+  .catch(err => {
+    console.error('Error connecting to database:', err);
+  });
